@@ -23,6 +23,12 @@ Installation:
     2.  Place the two texture files "Flashlight_Cookie.png" and "Flashlight_Grain.png" in
         \reshade-shaders\Textures
 
+    One thing to be aware of is the limitations of black pixels. Reshade only has information
+    about the pixel in its current state and if it's pure black, there is no color that can
+    be brightened. This flashlight tries to add in a bit of "scene color" and a tiny base
+    amount of light to black pixels but the hard limits will make the flashlight look weird
+    in these circumstances.
+
     Not really an "easy" flashlight since there are way too many sliders which needs to be
     individually tuned per game to look right. Especially shadows needs tuning per game to
     be near decently looking as the hard limits of screen-space reconstruction makes them

@@ -321,7 +321,7 @@ uniform float Flashlight_AmbientDepthBoost <
     ui_label = "Depth-Aware Ambient Boost";
     ui_type = "slider"; ui_min = 0.0; ui_max = 40.0; ui_step = 0.01;
     ui_tooltip = "Increases ambient lighting on surfaces near-depth to the main cone";
-> = 12.5;
+> = 8.0;
 
 uniform float Flashlight_AmbientDistance <
     ui_category = "Ambient Bounce";
@@ -574,7 +574,7 @@ uniform bool Flashlight_EnablePreLift <
 uniform bool Flashlight_DebugPreLift <
     ui_category = "Advanced Settings";
     ui_label = "Debug Pre-Lift View";
-    ui_tooltip = "Highlights rescued black pixels in blood red and disables main lighting.";
+    ui_tooltip = "Highlights rescued black pixels in scene color and disables main lighting.";
 > = 0;
 
 uniform float Flashlight_GrainScale <
