@@ -368,7 +368,7 @@ uniform float Flashlight_ShadowStrength <
     ui_category = "Directional Shadows";
     ui_label = "Shadow Strength";
     ui_type = "slider"; ui_min = 0.0; ui_max = 5.0; ui_step = 0.01;
-> = 3.500000;
+> = 1.400000;
 
 uniform float Flashlight_ShadowLogIntensity <
     ui_category = "Directional Shadows";
@@ -379,7 +379,7 @@ uniform float Flashlight_ShadowLogIntensity <
                  "shadow, and make already bright shadow pixels take closer to full shadow\n"
                  "strength. Same shape as Logarithmic Brightness Intensity, but tuned\n"
                  "independently for shadows.";
-> = 2.00000;
+> = 3.15000;
 
 uniform float Flashlight_ShadowMaxRange <
     ui_category = "Directional Shadows";
