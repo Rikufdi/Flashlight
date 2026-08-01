@@ -1,21 +1,5 @@
     Easy Flashlight Shader - True 3D Flashlight Beam with logarithmic depth-aware brightness and somewhat crappy contact shadows.
 
-// ==========================
-// Disclaimer
-// ==========================
-
-    Created by Rikufdi with AI assistance.
-
-    This shader may be used, modified, and redistributed for non-commercial
-    purposes only. Commercial use requires prior written permission.
-
-    This software is provided "as is", without warranty of any kind.
-
-// ==========================
-// Disclaimer
-// ==========================
-
-
     ****IMPORTANT****           Needs access to the depth buffer!           ****IMPORTANT****
 
         Use the DisplayDepth.fx in Reshade to see if you have access to the depth buffer.
