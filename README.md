@@ -1,8 +1,8 @@
     Easy Flashlight Shader - True 3D Flashlight Beam with logarithmic depth-aware brightness and somewhat crappy contact shadows.
 
-// =============================================================================
+// ==========================
 // Disclaimer
-// =============================================================================
+// ==========================
 
     Created by Rikufdi with AI assistance.
 
@@ -11,9 +11,9 @@
 
     This software is provided "as is", without warranty of any kind.
 
-// =============================================================================
+// ==========================
 // Disclaimer
-// =============================================================================
+// ==========================
 
 
     ****IMPORTANT****           Needs access to the depth buffer!           ****IMPORTANT****
