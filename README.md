@@ -13,7 +13,16 @@
         the Flashlight on those. Can be a bit tricky though.
 
     ****IMPORTANT****           Needs access to the depth buffer!           ****IMPORTANT****
-    
+
+
+Installation:
+
+    1.  Place EasyFlashlight.fx and its companion file Flashlight.fxh in the Reshade folder
+        \reshade-shaders\Shaders
+
+    2.  Place the two texture files "Flashlight_Cookie.png" and "Flashlight_Grain.png" in
+        \reshade-shaders\Textures
+
     Not really an "easy" flashlight since there are way too many sliders which needs to be
     individually tuned per game to look right. Especially shadows needs tuning per game to
     be near decently looking as the hard limits of screen-space reconstruction makes them
@@ -51,6 +60,10 @@
 
         3.  Some variants of the additive above to try and preserve colors but ultimately
             didn't work out.
+
+    The goal with this flashlight is to also to create a much simpler version in the future
+    with this as a guide of what works well and is cheap enough. As it is now there are
+    features that are not contributing meaningfully to the overall feel of the flashlight.
 
     Vibe-coded by many different AIs so I have no idea if everything is a mess or not as I
     have limited coding experience myself but have tried to keep it modular. The
