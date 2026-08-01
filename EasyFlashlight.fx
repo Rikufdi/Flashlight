@@ -589,7 +589,7 @@ uniform float Flashlight_GrainBrightness <
     ui_label = "Artifact Removal Grain Brightness";
     ui_tooltip = "Adjusts how bright the grain appears on pure black surfaces. Higher values make the grain variation more obvious.";
     ui_type = "slider"; ui_min = 0.01; ui_max = 100.0; ui_step = 0.1;
-> = 20.0;
+> = 6.0;
 
 uniform float Flashlight_ChromaScaleLimit <
     ui_category = "Advanced Settings";
