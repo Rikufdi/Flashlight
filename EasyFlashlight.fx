@@ -314,14 +314,14 @@ uniform float Flashlight_AmbientStrengthMaster <
     ui_category = "Ambient Bounce";
     ui_label = "Ambient Strength";
     ui_type = "slider"; ui_min = 0.0; ui_max = 2.0; ui_step = 0.01;
-> = 0.200000;
+> = 0.250000;
 
 uniform float Flashlight_AmbientDepthBoost <
     ui_category = "Ambient Bounce";
     ui_label = "Depth-Aware Ambient Boost";
     ui_type = "slider"; ui_min = 0.0; ui_max = 40.0; ui_step = 0.01;
     ui_tooltip = "Increases ambient lighting on surfaces near-depth to the main cone";
-> = 2.5;
+> = 12.5;
 
 uniform float Flashlight_AmbientDistance <
     ui_category = "Ambient Bounce";
