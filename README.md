@@ -67,7 +67,7 @@ Installation:
         3.  Some variants of the additive above to try and preserve colors but ultimately
             didn't work out.
 
-    The goal with this flashlight is to also to create a much simpler version in the future
+    The goal with this flashlight is to also create a much simpler version in the future
     with this as a guide of what works well and is cheap enough. As it is now there are
     features that are not contributing meaningfully to the overall feel of the flashlight.
 
