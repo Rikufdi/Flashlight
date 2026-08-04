@@ -226,7 +226,7 @@ uniform float Flashlight_Brightness <
     ui_label = "Brightness";
     ui_type = "slider"; ui_min = 0.0; ui_max = 200.0; ui_step = 0.1;
     ui_tooltip = "Overall intensity of the flashlight beam.";
-> = 100.000000;
+> = 150.000000;
 
 uniform float Flashlight_LogIntensity <
     ui_category = "Basic Controls";
@@ -256,7 +256,7 @@ uniform float3 Flashlight_Color <
     ui_label = "Color";
     ui_type = "color";
     ui_tooltip = "Color of the light. Default is warm white.";
-> = float3(1.000000, 0.971397, 0.757925);
+> = float3(1.000000, 0.980000, 0.940000);
 
 uniform float Flashlight_ColorTintStrength <
     ui_category = "Basic Controls";
@@ -589,7 +589,7 @@ uniform float Flashlight_GrainBrightness <
     ui_label = "Artifact Removal Grain Brightness";
     ui_tooltip = "Adjusts how bright the grain appears on pure black surfaces. Higher values make the grain variation more obvious.";
     ui_type = "slider"; ui_min = 0.01; ui_max = 100.0; ui_step = 0.1;
-> = 6.0;
+> = 3.0;
 
 uniform float Flashlight_ChromaScaleLimit <
     ui_category = "Advanced Settings";
@@ -625,7 +625,7 @@ uniform bool Flashlight_UseCookie <
     ui_category = "Advanced Settings";
     ui_label = "Cone Cookie Texture On/Off";
     ui_tooltip = "Modulates the beam with a texture (Flashlight_Cookie.png in the Textures folder) to simulate reflector segments, lens dust, etc.";
-> = 0;
+> = 1;
 
 uniform float Flashlight_CookieStrength <
     ui_category = "Advanced Settings";
@@ -646,7 +646,7 @@ uniform float Flashlight_ParallaxCookieMinSize <
     ui_label = "Parallax Cookie Min Size";
     ui_type = "slider"; ui_min = 0.1; ui_max = 1.0; ui_step = 0.01;
     ui_tooltip = "Prevents the cookie from shrinking too much when aiming at very close surfaces. 0.5 means it can't shrink smaller than half its normal size.";
-> = 0.50;
+> = 0.60;
 
 uniform bool Flashlight_UseSmoothNormals <
     ui_category = "Advanced Settings";
