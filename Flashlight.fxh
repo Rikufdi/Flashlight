@@ -803,7 +803,7 @@ float Flashlight_SceneColorWeight(float3 color) {
     // Filters out dark pixels (<0.10) AND overexposed highlights (>0.50)
     // keeping the average focused purely on vibrant midtone colors.
     float satWeight = smoothstep(0.15, 0.50, sat);
-    float lumWeight = smoothstep(0.10, 0.35, lum) * (1.0 - smoothstep(0.50, 0.95, lum));
+    float lumWeight = smoothstep(0.08, 0.13, lum) * (1.0 - smoothstep(0.50, 0.65, lum));
 
     return satWeight * lumWeight;
 }
@@ -877,8 +877,8 @@ float3 Flashlight_ApplyPreLift(
     float seedMagnitude = lerp(Flashlight_GrainFloorMin, Flashlight_GrainFloorMax, grainSample * grainBrightness) * footprint;
 
     // Since the center isn't dead anymore, you can drop this multiplier back down 
-    // to a reasonable number (e.g., 25.0 to 50.0) instead of 125 or 1000.
-    color = max(color, localAvg * seedMagnitude * 40.0 * isDark);
+    // to a reasonable number (e.g., 25.0 to 100.0) instead of 125 or 1000.
+    color = max(color, localAvg * seedMagnitude * 80.0 * isDark);
 
     return color;
 }
