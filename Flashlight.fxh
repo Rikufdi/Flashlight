@@ -813,7 +813,7 @@ float3 Flashlight_GetLocalAverageColor(float2 uv) {
     // center of the screen to pull a true, unified whole-frame average color.
     float3 avg = tex2Dlod(sSceneColorDownsampled, float4(0.5, 0.5, 0, SCENE_DOWNSCALE_MIPS - 1)).rgb;
     
-    // Prevent HDR blowout (pure white) by scaling the brightness back down
+    // Prevent blowout (pure white) by scaling the brightness back down
     // to a safe 0-1 range while perfectly preserving the hue.
     float maxC = max(avg.r, max(avg.g, avg.b));
     if (maxC > 1.0) {
@@ -960,7 +960,7 @@ float3 ApplyContrast(float3 color, float normalizedDist, float ambientShape, flo
     totalContrast *= darknessProtection;
 
     // --- FIX 2: Overbright Inversion (Center Black Hole) ---
-    // Extracts any HDR brightness above 1.0 so the S-Curve only evaluates the safe 0-1 range.
+    // Extracts any brightness above 1.0 so the S-Curve only evaluates the safe 0-1 range.
     // This stops the lerp extrapolation from creating a downward mathematical slope that
     // inverts the overbright center of the beam into pure black.
     float clampedLum = saturate(lum);
