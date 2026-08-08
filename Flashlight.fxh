@@ -34,6 +34,13 @@
 #ifndef FLASHLIGHT_SHADOW_STEPS
     #define FLASHLIGHT_SHADOW_STEPS 8
 #endif
+#if FLASHLIGHT_SHADOW_STEPS < 4
+    #undef FLASHLIGHT_SHADOW_STEPS
+    #define FLASHLIGHT_SHADOW_STEPS 4
+#elif FLASHLIGHT_SHADOW_STEPS > 32
+    #undef FLASHLIGHT_SHADOW_STEPS
+    #define FLASHLIGHT_SHADOW_STEPS 32
+#endif
 static const float Flashlight_ShadowDepthFade = 0.600;
 static const int   Flashlight_ShadowSteps = FLASHLIGHT_SHADOW_STEPS;
 static const float Flashlight_ShadowStepBias = 1.600;
@@ -363,9 +370,9 @@ float3 MarchShadowRay(
     
     float validStepsCount = 0.0001; 
     float averageHitWeight = 0.0;
-    int numSteps = clamp(Flashlight_ShadowSteps, 4, 32);
+    int numSteps = Flashlight_ShadowSteps;
     float aspectRatio = BUFFER_WIDTH * BUFFER_RCP_HEIGHT;
-    [unroll]
+    [loop]
     for (int i = 1; i <= numSteps; i++) {
         float tLinear = saturate(((float)i + jitter) / (float)numSteps);
         float tDistributed = pow(tLinear, stepBias);
@@ -419,7 +426,7 @@ float FinalizeShadow(
     out float penumbraPixels
 ) {
     penumbraPixels = 0.0;
-    int numSteps = clamp(Flashlight_ShadowSteps, 4, 32);
+    int numSteps = Flashlight_ShadowSteps;
     float softHitsReq = (float)numSteps * lerp(0.40, 0.22, saturate(dynamicSoftness));
     float crispHitsReq = 0.05; 
     
