@@ -967,15 +967,13 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     // ---- ARTIFACT REMOVAL (applied before pre-lift) ----
     float artifactAttenuation = 1.0;
     if (Flashlight_UseArtifactRemoval) {
-        color = Flashlight_ApplyArtifactRemoval(color, 0.004, pixelPos, normal, artifactAttenuation);
+        color = Flashlight_ApplyArtifactRemoval(color, 0.004, artifactAttenuation);
     }
 
     // =========================================================================
     // PRE‑LIFT: GIVE PURE‑BLACK PIXELS A TINY BASELINE (using local scene colour)
     // =========================================================================
     if (Flashlight_UseArtifactRemoval && Flashlight_EnablePreLift) {
-        
-        // Actually call the pre-lift function from the helper library
         color = Flashlight_ApplyPreLift(
             color,
             uv,
@@ -1017,14 +1015,12 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         colored_cone,
         (Flashlight_Brightness * proximityAmp) * artifactAttenuation,
         Flashlight_LogIntensity,
-        0.05,
         Flashlight_Color,
         ambientIntensity * artifactAttenuation,
         Flashlight_AmbientLogIntensity,
-        0.20,
         Flashlight_UseAmbient,
         coneEdgeFactor,
-        finalRescueBrightness // <--- Pass the modulated grain variable here
+        finalRescueBrightness
     );
 
     // ---- COLOUR TINT ----
@@ -1041,7 +1037,7 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     color = ApplySharpening(color, uv, sharpenWeight, 0.30);
 
     // ---- CONTRAST ----
-    color = ApplyContrast(color, normalizedDist, ambientShape, Flashlight_ContrastMaster, depthVal, Flashlight_Distance, lightIntensity);
+    color = ApplyContrast(color, ambientShape, Flashlight_ContrastMaster, depthVal, Flashlight_Distance, lightIntensity);
 
     return float4(color, 1.0);
 }

@@ -361,8 +361,7 @@ float3 MarchShadowRay(
     float contactThreshold,   
     float thicknessLimit,
     float reachRange,         
-    float stepBias,
-    float sourceRadius
+    float stepBias
 ) {
     float hits = 0.0;
     float blockerDistSum = 0.0;
@@ -506,7 +505,7 @@ float CalculateDirectionalOcclusion(
     float3 marchResult = MarchShadowRay(
         biasedPos, rayDir, maxSearchDist, jitter, dynamicSoftness,
         activeContactThreshold, activeThicknessLimit, activeReach,
-        Flashlight_ShadowStepBias, sourceRadius
+        Flashlight_ShadowStepBias
     );
     
     return FinalizeShadow(
@@ -621,9 +620,9 @@ float3 Flashlight_ApplyColorTint(
 
 float3 Flashlight_ApplyCombinedLight(
     float3 color,
-    float3 coneFactor, float coneIntensity, float coneLogIntensity, float coneColorBoost,
-    float3 ambFactor, float ambIntensity, float ambLogIntensity, float ambColorBoost, bool ambActive,
-    float coneEdgeFactor,   // New: 1 at centre, 0 at the cone edge
+    float3 coneFactor, float coneIntensity, float coneLogIntensity,
+    float3 ambFactor, float ambIntensity, float ambLogIntensity, bool ambActive,
+    float coneEdgeFactor,   // 1 at centre, 0 at the cone edge
     float rescueBrightness
 ) {
     float luminance = dot(color, float3(0.299, 0.587, 0.114));
@@ -653,7 +652,7 @@ float3 totalBoost = coneBoost + ambBoost;
     float3 boosted = color * (1.0 + totalBoost);
 
     // --- NEAR-BLACK RESCUE: ADDITIVE, CLAMPED-CHROMA ---
-    // NEW LOGIC: Calculate luminance based purely on the bounded ~0-1 light shape 
+    // Calculate luminance based purely on the bounded ~0-1 light shape 
     // and the independent rescue knob, ignoring the massive multiplicative intensity.
     float shapeLum = dot(coneFactor, float3(0.299, 0.587, 0.114));
     float rawLightLum = shapeLum * rescueBrightness; 
@@ -860,7 +859,7 @@ float3 Flashlight_ApplyPreLift(
     float isDark = 1.0 - smoothstep(0.0, 0.012, lum);
     if (isDark <= 0.0) return color;
 
-    // --- THE FIX 1: FLATTER FOOTPRINT (CORRECTED) ---
+    // --- FLATTER FOOTPRINT ---
     // Properly ordered smoothstep (min, max, value) to fix the dead center
     float flatConeMask = 1.0 - smoothstep(0.001, 1.15, normalizedDist);
     
@@ -882,9 +881,6 @@ float3 Flashlight_ApplyPreLift(
     float grainSample = Flashlight_SampleGrain(pixelPos, normal, Flashlight_GrainScale);
     float grainBrightness = saturate(Flashlight_GrainBrightness / 10.0);
     float seedMagnitude = lerp(Flashlight_GrainFloorMin, Flashlight_GrainFloorMax, grainSample * grainBrightness) * footprint;
-
-    // Since the center isn't dead anymore, you can drop this multiplier back down 
-    // to a reasonable number (e.g., 25.0 to 100.0) instead of 125 or 1000.
     color = max(color, localAvg * seedMagnitude * 80.0 * isDark);
 
     return color;
@@ -895,7 +891,7 @@ float3 Flashlight_ApplyPreLift(
 // ARTIFACT REMOVAL (Desaturate lopsided near‑black pixels)
 // =============================================================================
 
-float3 Flashlight_ApplyArtifactRemoval(float3 color, float artifactThreshold, float3 viewPos, float3 normal, out float attenuation) {
+float3 Flashlight_ApplyArtifactRemoval(float3 color, float artifactThreshold, out float attenuation) {
     attenuation = 1.0;
     float lum = dot(color, float3(0.299, 0.587, 0.114));
     if (lum < artifactThreshold) {
@@ -927,7 +923,7 @@ float3 ApplySharpening(float3 color, float2 uv, float sharpenWeight, float stren
     return lerp(color, sharpened, sharpenWeight * 0.30);
 }
 
-float3 ApplyContrast(float3 color, float normalizedDist, float ambientShape, float contrastMaster, float depthVal, float reachDistance, float lightIntensity) {
+float3 ApplyContrast(float3 color, float ambientShape, float contrastMaster, float depthVal, float reachDistance, float lightIntensity) {
     if (contrastMaster <= 0.0) return color;
 
     // --- Depth-based Contrast Modulator ---
@@ -940,7 +936,7 @@ float3 ApplyContrast(float3 color, float normalizedDist, float ambientShape, flo
     float depthModulator = nearFade * depthFalloff * intensityThrottle;
 
     // --- Deformation-Aware Masks ---
-    float geometricMask = saturate(1.0 - reachDistance); //normalizedDist);
+    float geometricMask = saturate(1.0 - reachDistance);
     float coneMask = saturate(lightIntensity * 1.5) * geometricMask; 
     
     float lightMask = max(coneMask, ambientShape);
@@ -959,14 +955,14 @@ float3 ApplyContrast(float3 color, float normalizedDist, float ambientShape, flo
     // --- PREPARE LUMINANCE ---
     float lum = dot(color, float3(0.299, 0.587, 0.114));
 
-    // --- FIX 1: Darkness Protection (Shadow Crush) ---
+    // --- Darkness Protection (Shadow Crush) ---
     // Smoothly fades out the extreme contrast multiplier on pixels sitting in the 
-    // delicate pre-lift range (0.005 - 0.040), preventing them from being pushed 
+    // delicate pre-lift range (0.005 - 0.150), preventing them from being pushed 
     // into negative numbers and crushed back to pure black.
     float darknessProtection = smoothstep(0.005, 0.150, lum);
     totalContrast *= darknessProtection;
 
-    // --- FIX 2: Overbright Inversion (Center Black Hole) ---
+    // --- Overbright Inversion (Center Black Hole) ---
     // Extracts any brightness above 1.0 so the S-Curve only evaluates the safe 0-1 range.
     // This stops the lerp extrapolation from creating a downward mathematical slope that
     // inverts the overbright center of the beam into pure black.
