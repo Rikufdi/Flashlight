@@ -762,6 +762,11 @@ float4 PS_DownsampleSceneColor(float4 p : SV_POSITION, float2 uv : TEXCOORD) : S
 // (virtual) shadow-casting light position to find occluders. Outputs
 // (shadowFactor, penumbraPixels) for the blur pass to consume.
 float2 PS_ComputeShadow(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET { 
+    // Shadows fully disabled (toggle off, or zero strength): the output below
+    // is 1.0 (no shadow) everywhere, and the main pass only reads the shadow
+    // buffer when shadows are on - so skip the normal/depth reconstruction and
+    // beam projection entirely. The branch is on a uniform, so it's free.
+    if (!Flashlight_UseShadows || Flashlight_ShadowStrength <= 0.0) return float2(1.0, 0.0);
     float4 normalData = tex2D(sNormalRaw, uv);
     float depthC = normalData.w;
 
@@ -836,6 +841,9 @@ float2 PS_ComputeShadow(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGE
 // the estimated penumbra size from the raymarch, so contact shadows stay
 // crisp while softer/farther shadows get smoothed more.
 float PS_BlurShadow(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
+    // Shadows fully disabled: the raw buffer holds 1.0 everywhere, so a
+    // full-screen depth-weighted blur would be pure waste.
+    if (!Flashlight_UseShadows || Flashlight_ShadowStrength <= 0.0) return 1.0;
     float2 centerSample = tex2D(sShadowRaw, uv).rg;
     float centerShadow = centerSample.r;
     float centerPenumbra = centerSample.g;
