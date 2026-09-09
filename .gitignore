@@ -1,1 +1,7 @@
 *.zip
+
+# Local agent/dev files - not part of the shipped effect
+AGENTS.md
+tools/
+reshade/
+ReShade.fxh
