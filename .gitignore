@@ -2,6 +2,7 @@
 
 # Local agent/dev files - not part of the shipped effect
 AGENTS.md
+REVIEW.md
 tools/
 reshade/
 ReShade.fxh
