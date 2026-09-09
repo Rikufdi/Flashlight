@@ -621,6 +621,26 @@ uniform float Flashlight_NearBlackRescueRange <
     ui_type = "slider"; ui_min = 0.0; ui_max = 0.2; ui_step = 0.001;
 > = 0.003;
 
+uniform float Flashlight_RescueAngleStrength <
+    ui_category = "Advanced Settings";
+    ui_label = "Near-Black Rescue Angle Shading";
+    ui_tooltip = "Shades the additive rescue by which way the surface is turned relative to\n"
+                 "the beam, so different faces of a corner or pylon get different brightness\n"
+                 "even when the pixel is pure black. Faces turned toward the beam stay fully\n"
+                 "rescued, faces turned away are dimmed. 0 = off (flat rescue).";
+    ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_step = 0.001;
+> = 0.300;
+
+uniform float Flashlight_RescueFacingTintStrength <
+    ui_category = "Advanced Settings";
+    ui_label = "Near-Black Rescue Facing Tint";
+    ui_tooltip = "Tints the rescue light by which way the surface is turned:\n"
+                 "right-facing reddish, left-facing greenish, up-facing yellowish,\n"
+                 "down-facing bluish. Luma-neutral, so it never changes the rescue\n"
+                 "brightness or fights the scene-colour seed. 0 = off (untinted).";
+    ui_type = "slider"; ui_min = 0.0; ui_max = 1.0; ui_step = 0.001;
+> = 0.100;
+
 uniform bool Flashlight_UseCookie <
     ui_category = "Advanced Settings";
     ui_label = "Cone Cookie Texture On/Off";
@@ -922,6 +942,11 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
     
     float3 lightDir = normalize(lightPos - pixelPos);
     float facing = ComputeFacingTerm(normal, lightDir, depthVal);
+    // Angle shading for the near-black rescue path: a stronger angle response than
+    // the main beam's facing term (which is floored near 1.0), so black pixels on
+    // different faces of the same geometry still read as different planes.
+    float rescueFacing = ComputeRescueFacing(normal, lightDir);
+    float3 rescueTint = ComputeRescueFacingTint(normal);
 
     // ---- FETCH BASE COLOR EARLY (needed for shadowMix and pre‑lift) ----
     float3 color = tex2D(sColor, uv).rgb;
@@ -1028,7 +1053,9 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
         Flashlight_AmbientLogIntensity,
         Flashlight_UseAmbient,
         coneEdgeFactor,
-        finalRescueBrightness
+        finalRescueBrightness,
+        rescueFacing,
+        rescueTint
     );
 
     // ---- COLOUR TINT ----

@@ -623,7 +623,9 @@ float3 Flashlight_ApplyCombinedLight(
     float3 coneFactor, float coneIntensity, float coneLogIntensity,
     float3 ambFactor, float ambIntensity, float ambLogIntensity, bool ambActive,
     float coneEdgeFactor,   // 1 at centre, 0 at the cone edge
-    float rescueBrightness
+    float rescueBrightness,
+    float rescueFacing,     // 1 = flat; <1 dims faces turned away from the beam
+    float3 rescueTint       // luma-neutral hue of the rescue light (white = untinted)
 ) {
     float luminance = dot(color, float3(0.299, 0.587, 0.114));
     // Only the scale-factor evaluation point is floored, so the brightness
@@ -655,12 +657,19 @@ float3 totalBoost = coneBoost + ambBoost;
     // Calculate luminance based purely on the bounded ~0-1 light shape 
     // and the independent rescue knob, ignoring the massive multiplicative intensity.
     float shapeLum = dot(coneFactor, float3(0.299, 0.587, 0.114));
-    float rawLightLum = shapeLum * rescueBrightness; 
+    // Angle shading (DisplayDepth-style): faces turned away from the beam get
+    // slightly less rescue light, so the faces of a corner or pylon stay
+    // distinguishable even when the pixel is pure black. 1.0 = flat rescue.
+    float rawLightLum = shapeLum * rescueBrightness * rescueFacing;
     
     float newLumaAdditive = luminance + rawLightLum;
     float3 chroma = color - luminance;
     float chromaScale = min(newLumaAdditive / max(luminance, 0.0001), Flashlight_ChromaScaleLimit);
-    float3 rescueResult = max(newLumaAdditive + chroma * chromaScale, 0.0);
+    // The added light carries the luma-neutral facing tint; the scene-colour
+    // chroma seed (pre-lift's whole-scene average) is added on top, so the
+    // orientation tint and the scene colour compose without fighting.
+    // rescueTint = white gives exactly the old flat rescue.
+    float3 rescueResult = max(luminance + rawLightLum * rescueTint + chroma * chromaScale, 0.0);
 
     float rescueBlend = 1.0 - smoothstep(0.0, max(Flashlight_NearBlackRescueRange, 0.0001), luminance);
     float3 blended = lerp(boosted, rescueResult, rescueBlend);
@@ -740,6 +749,74 @@ float ComputeFacingTerm(float3 normal, float3 lightDir, float depthVal) {
     float depthFactor = saturate(depthVal * 4.0);
     float floor = lerp(Flashlight_FacingFloor, 0.95, depthFactor);
     return floor + (1.0 - floor) * pow(wrapped, Flashlight_FacingPower);
+}
+
+// Angle response for the near-black rescue path (DisplayDepth-style shading):
+// scale the rescue light by the surface's orientation relative to the beam so
+// different faces of a corner or pylon read as separate planes even on
+// pure-black surfaces.
+//
+// Tangential (X/Y) facing only. Every visible surface carries a large
+// camera-facing Z component in BOTH the reconstructed normal and the light
+// direction (the light sits behind the camera), so the shared Z term of a
+// full 3D dot dominates and the cue only showed up on very steeply tilted
+// faces. The orientation that actually separates the faces of a corner
+// lives in X/Y: which way the face is turned relative to the beam.
+//
+// Faces turned toward the beam keep full rescue, faces turned away are
+// dimmed by a wrapped Lambert (wrap 0.6) so they stay visible instead of
+// vanishing. Strength 0 returns exactly the old flat rescue.
+float ComputeRescueFacing(float3 normal, float3 lightDir) {
+    if (Flashlight_RescueAngleStrength <= 0.0) return 1.0;
+    float2 n = normal.xy;
+    float2 l = lightDir.xy;
+    float nLen = length(n);
+    float lLen = length(l);
+    // No tangential direction to compare (flat wall or beam-centre ray):
+    // treat as facing the light.
+    if (nLen < 1e-4 || lLen < 1e-4) return 1.0;
+    float facing = dot(n, l) / (nLen * lLen); // -1 (turned away) .. +1 (toward beam)
+    // A nearly-flat face has an unreliable tilt direction (depth-buffer
+    // normal smoothing noise); anchor it to full rescue so flat walls
+    // don't flicker. Fully directional above ~9 degrees of tilt.
+    facing = lerp(1.0, facing, saturate(nLen / 0.15));
+    const float wrap = 0.6;
+    float wrapped = saturate((facing + wrap) / (1.0 + wrap));
+    return lerp(1.0, wrapped, Flashlight_RescueAngleStrength);
+}
+
+// --- Facing tint palette (Near-Black Rescue Facing Tint slider) ---
+// Which way the face is turned relative to the camera (view space: +X right,
+// +Y up). Luma-normalised at use, so the tint only shifts hue and never
+// steals brightness from the rescue light or the scene-colour seed.
+static const float3 RESCUE_TINT_RIGHT = float3(1.00, 0.35, 0.35);
+static const float3 RESCUE_TINT_LEFT  = float3(0.35, 1.00, 0.35);
+static const float3 RESCUE_TINT_UP    = float3(1.00, 0.90, 0.35);
+static const float3 RESCUE_TINT_DOWN  = float3(0.35, 0.50, 1.00);
+
+// Luma-neutral orientation tint for the near-black rescue light:
+// right-facing reddish, left-facing greenish, up-facing yellowish,
+// down-facing bluish; diagonal faces blend (up-right reads orange).
+// A flat wall has no tangential normal and stays untinted, and
+// strength 0 returns exactly white.
+float3 ComputeRescueFacingTint(float3 normal) {
+    if (Flashlight_RescueFacingTintStrength <= 0.0) return float3(1.0, 1.0, 1.0);
+    float2 n = normal.xy;
+    float nLen = length(n);
+    if (nLen < 1e-4) return float3(1.0, 1.0, 1.0);
+    float2 d = n / nLen;
+    float3 tint = RESCUE_TINT_RIGHT * max(d.x, 0.0)
+                + RESCUE_TINT_LEFT  * max(-d.x, 0.0)
+                + RESCUE_TINT_UP    * max(d.y, 0.0)
+                + RESCUE_TINT_DOWN  * max(-d.y, 0.0);
+    float tLuma = dot(tint, float3(0.299, 0.587, 0.114));
+    if (tLuma < 1e-4) return float3(1.0, 1.0, 1.0);
+    tint = tint / tLuma;
+    // Same anchor as ComputeRescueFacing: a nearly-flat face's tilt
+    // direction is depth-buffer smoothing noise, so tint fades to none
+    // below ~9 degrees of tilt instead of flickering a random hue.
+    float dirWeight = saturate(nLen / 0.15);
+    return lerp(float3(1.0, 1.0, 1.0), tint, saturate(Flashlight_RescueFacingTintStrength) * dirWeight);
 }
 
 float ComputeScatteringBoost(float depthVal, float normalizedDist, float aimDepth, float ambientDepthBoost, float coneIntensity, float depthFalloff) {

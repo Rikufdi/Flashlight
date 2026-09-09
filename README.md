@@ -29,6 +29,18 @@ Installation:
     amount of light to black pixels but the hard limits will make the flashlight look weird
     in these circumstances.
 
+    The rescue light is also shaded by surface orientation (the "Near-Black Rescue
+    Angle Shading" slider under Advanced Settings): faces turned away from the beam get
+    slightly less rescue than faces pointing at it, so the different faces of a corner or
+    pillar still read as different planes instead of one flat grey patch. Set it to zero
+    to get the old flat rescue back.
+
+    A matching "Near-Black Rescue Facing Tint" slider tints those faces by the
+    way they are turned: reddish when they face right of the camera, greenish
+    left, yellowish up, bluish down, with diagonals blending. It's
+    luma-neutral, so it composes with the scene color instead of changing the
+    rescue brightness.
+
     Not really an "easy" flashlight since there are way too many sliders which needs to be
     individually tuned per game to look right. Especially shadows needs tuning per game to
     be near decently looking as the hard limits of screen-space reconstruction makes them

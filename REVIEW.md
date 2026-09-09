@@ -11,7 +11,7 @@ Two files, one ReShade effect:
 - **Depth-buffer only.** There is no access to world/view matrices, so everything is done in *view space*, reconstructed from the linearized depth buffer. `Flashlight_WorldScale` is the master calibration that turns the game's depth scale into a common unit used across every calculation.
 - **Beam aimed at a depth, not the screen centre.** A small accumulation buffer (pass 3) computes a weighted-average "what is the beam pointed at" depth (`GetAimDepth()`). The beam axis runs from a virtual light position (just behind the camera, `Offset*`) to that depth point on the view axis. Everything — cone shape, cookie, ambient, scattering, pre-lift, shadow culling — is defined relative to that axis.
 - **Virtual 1080p canvas.** Beam-space math is normalized against a fixed 1080p-tall reference (`VIRTUAL_CANVAS_HEIGHT`) so the beam size is resolution-independent.
-- **Hybrid lighting.** A pure-black pixel has no colour to brighten, so a *rescue* path seeds it with a whole-scene average colour + grain and adds light additively (with clamped chroma). Everything else uses a *logarithmic multiplicative* curve that lifts dark pixels more than bright ones while preserving hue, then a Reinhard-style soft shoulder prevents hard clipping.
+- **Hybrid lighting.** A pure-black pixel has no colour to brighten, so a *rescue* path seeds it with a whole-scene average colour + grain and adds light additively (with clamped chroma). Everything else uses a *logarithmic multiplicative* curve that lifts dark pixels more than bright ones while preserving hue, then a Reinhard-style soft shoulder prevents hard clipping. The rescue is also angle-shaded (`Flashlight_RescueAngleStrength`): `ComputeRescueFacing` uses the tangential (X/Y) surface-facing dot only — the shared Z component of visible surfaces dominates a full 3D dot and buried the cue — wraps it, and scales the additive term, so pure-black faces of the same geometry separate by orientation instead of reading as one flat grey patch. `Flashlight_RescueFacingTintStrength` additionally tints that rescue luma-neutrally by facing direction (right reddish, left greenish, up yellowish, down bluish), so faces also separate by hue; the tint is luma-normalised, so the scene-colour seed and rescue brightness are untouched.
 
 ## The 7 passes
 
@@ -40,7 +40,7 @@ Two files, one ReShade effect:
 4. `Flashlight_ComputeParallaxOffset` — shifts the sample point along the normal and re-derives the cookie UV so the gobo keeps a consistent projected size.
 5. Chromatic aberration (per-channel `normalizedDist` scale) → Gaussian cone × `saturate(1-d)`.
 6. Depth falloff `pow(1-depth, 1/Distance)`, wrapped-Lambert facing term (floor 0.85, wrap 0.8, power 2), log-intensity-weighted shadow mix, ambient ring (Gaussian peaking just outside the cone), depth-coherent scattering boost, close-up proximity amp, cookie mask.
-7. `Flashlight_ApplyCombinedLight` — the heart: log-scale multiplicative boost + near-black additive rescue (clamped chroma) + soft shoulder + highlight desat.
+7. `Flashlight_ApplyCombinedLight` — the heart: log-scale multiplicative boost + near-black additive rescue (clamped chroma, angle-shaded via `ComputeRescueFacing`) + soft shoulder + highlight desat.
 8. `Flashlight_ApplyColorTint` (shortest-path HSV hue shift, saturation-protected), `ApplySharpening` (4-neighbour, weighted by cone-centre), `ApplyContrast` (S-curve with darkness protection and an overbright-inversion guard).
 
 ## Improvement review
@@ -71,7 +71,7 @@ Three independent constants each define "dark pixel" with different bands: artif
 
 - **Grain is view-space, not world-locked.** `Flashlight_SampleGrain` triplanes in view space because ReShade does not expose the view matrix. It holds up under camera translation but drifts slightly when you look around. This is a hard API limit; the current approach is the pragmatic best.
 - **Shadows are screen-space only.** Reconstructed normals + depth raymarching cannot recover hidden detail, so per-game tuning is unavoidable (already documented in the README). Keep `Shadow Max Range` low and tune `ProjectionScale` / `WorldScale` per game.
-- **Black-pixel rescue is a heuristic.** ReShade has no pre-light colour for a pure-black pixel, so borrowing a scene average + grain is the best possible. The `DownsampleUseRaw` toggle exists exactly because gamma vs linear matters here.
+- **Black-pixel rescue is a heuristic.** ReShade has no pre-light colour for a pure-black pixel, so borrowing a scene average + grain is the best possible. The `DownsampleUseRaw` toggle exists exactly because gamma vs linear matters here. Angle shading (`Near-Black Rescue Angle Shading`, `ComputeRescueFacing`) mitigates the flat-grey look by scaling the rescue with surface orientation relative to the beam.
 
 ### For the "simpler flashlight" goal (README §future)
 
