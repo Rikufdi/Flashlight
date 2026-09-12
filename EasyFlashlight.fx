@@ -177,6 +177,21 @@ sampler2D sNormalSmooth {
     AddressV = CLAMP;
 };
 
+// Persistent 1x1 state for the arrow-key aim follow (Flashlight_AimFollow_*):
+// .xy holds the current spring-damper position (the look-based aimpoint
+// offset), .zw holds its velocity. Written by PS_UpdateAimFollow and carried
+// over frame-to-frame since ReShade does not clear render targets by default
+// (ClearRenderTargets = false below makes that explicit) - the same
+// feedback-texture trick used for temporal accumulation elsewhere.
+texture2D AimFollowStateTex { Width = 1; Height = 1; Format = RGBA32F; };
+sampler2D sAimFollowState {
+    Texture = AimFollowStateTex;
+    MinFilter = POINT;
+    MagFilter = POINT;
+    AddressU = CLAMP;
+    AddressV = CLAMP;
+};
+
 // Grain texture for pure-black surfaces. Place a tileable, grayscale
 // noise/grain image named "Flashlight_Grain.png" in ReShade's Textures
 // folder (next to the Shaders folder). If your image isn't 512x512, change
@@ -300,6 +315,65 @@ uniform float Flashlight_WorldScale <
     ui_tooltip = "This calibration affects all depth calculations but can be useful to get properly aligned shadows.\n"
                  "Usage: Look at a close shadow and adjust this until its edges are crisp.";
 > = 1.0;
+
+// =============================================================================
+// AIM FOLLOW (ARROW-KEY LOOK OFFSET)
+// =============================================================================
+
+// Hidden input uniforms - not meant to be touched in the UI, just read by
+// PS_UpdateAimFollow. ReShade's "key" source with no "toggle" annotation
+// reports true only while the key is currently held down, which is what we
+// want for a directional input rather than a persistent toggle.
+uniform bool Flashlight_KeyLeft < source = "key"; keycode = 0x25; hidden = true; > = false;
+uniform bool Flashlight_KeyRight < source = "key"; keycode = 0x27; hidden = true; > = false;
+uniform bool Flashlight_KeyUp < source = "key"; keycode = 0x26; hidden = true; > = false;
+uniform bool Flashlight_KeyDown < source = "key"; keycode = 0x28; hidden = true; > = false;
+uniform float Flashlight_FrameTime < source = "frametime"; hidden = true; >;
+
+uniform bool Flashlight_AimFollow_Enable <
+    ui_category = "Aim Follow (Arrow Keys)";
+    ui_label = "Enable Aim Follow";
+    ui_tooltip = "Nudges the flashlight's aimpoint with the arrow keys, as a stand-in for\n"
+                 "look direction so the beam leans slightly the way you're turning. Contact\n"
+                 "shadows lean with it too. Holding a direction (or two, for diagonals) drags\n"
+                 "the aimpoint that way; releasing lets it spring back to center. Needs the\n"
+                 "game window focused so ReShade sees the key presses.";
+> = 1;
+
+uniform float Flashlight_AimFollow_MaxOffset <
+    ui_category = "Aim Follow (Arrow Keys)";
+    ui_label = "Max Offset";
+    ui_type = "slider"; ui_min = 0.0; ui_max = 0.5; ui_step = 0.001;
+    ui_tooltip = "Furthest the aimpoint can drift from center while a direction is held.";
+> = 0.060;
+
+uniform float Flashlight_AimFollow_DriveStrength <
+    ui_category = "Aim Follow (Arrow Keys)";
+    ui_label = "Drive Strength";
+    ui_type = "slider"; ui_min = 0.1; ui_max = 20.0; ui_step = 0.1;
+    ui_tooltip = "How strongly a held direction key pulls the aimpoint outward.";
+> = 6.0;
+
+uniform float Flashlight_AimFollow_SpringStrength <
+    ui_category = "Aim Follow (Arrow Keys)";
+    ui_label = "Return Strength (Rubber Band)";
+    ui_type = "slider"; ui_min = 0.1; ui_max = 40.0; ui_step = 0.1;
+    ui_tooltip = "How hard the aimpoint is always pulled back toward center, even while a\n"
+                 "key is held. Higher = shorter reach and snappier return; this is also what\n"
+                 "makes the drift feel rubbery, since it fights the Drive Strength harder the\n"
+                 "further out the aimpoint gets.";
+> = 10.0;
+
+uniform float Flashlight_AimFollow_DampingRatio <
+    ui_category = "Aim Follow (Arrow Keys)";
+    ui_label = "Damping Ratio (Overshoot)";
+    ui_type = "slider"; ui_min = 0.3; ui_max = 3.0; ui_step = 0.01;
+    ui_tooltip = "Controls overshoot when the aimpoint swings back through center.\n"
+                 "1.0 = critically damped (settles with essentially no overshoot) regardless\n"
+                 "of Drive/Return Strength. Below 1.0 = bouncier, springs past center before\n"
+                 "settling. Above 1.0 = overdamped, approaches center more slowly but never\n"
+                 "overshoots. A touch above 1.0 (e.g. 1.05-1.15) allows just a hint of overshoot.";
+> = 1.10;
 
 // =============================================================================
 // Ambient Bounce
@@ -699,6 +773,58 @@ uniform bool Flashlight_DownsampleUseRaw <
 // PIXEL SHADERS
 // =============================================================================
 
+// Pass 0: spring-damper simulation for the arrow-key aim follow. Reads last
+// frame's (position, velocity) out of the 1x1 AimFollowStateTex, drives it
+// with whichever arrow keys are held (normalized so diagonals aren't
+// faster), always pulls it back toward center, and writes the new state back
+// for Flashlight_GetAimFollowOffset to consume this frame.
+float4 PS_UpdateAimFollow(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
+    float4 state = tex2Dlod(sAimFollowState, float4(0.5, 0.5, 0, 0));
+    float2 pos = state.xy;
+    float2 vel = state.zw;
+
+    if (!Flashlight_AimFollow_Enable) {
+        return float4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    float2 inputDir = float2(0.0, 0.0);
+    if (Flashlight_KeyRight) inputDir.x += 1.0;
+    if (Flashlight_KeyLeft)  inputDir.x -= 1.0;
+    if (Flashlight_KeyUp)    inputDir.y += 1.0;
+    if (Flashlight_KeyDown)  inputDir.y -= 1.0;
+
+    float dirLen = length(inputDir);
+    if (dirLen > 0.001) inputDir /= dirLen; // 8-way: diagonals move at the same speed as cardinals
+
+    // Clamped so a stutter/hitch can't fling the aimpoint via a huge dt.
+    float dt = clamp(Flashlight_FrameTime / 1000.0, 0.0, 0.05);
+
+    // Deriving the damping coefficient from the spring strength (rather than
+    // letting it be tuned independently) keeps the ratio - and so the
+    // overshoot behaviour - constant no matter how Drive/Return Strength are
+    // set. damping = ratio * 2*sqrt(spring) is the standard critically-damped
+    // coefficient for a mass-spring-damper; ratio 1.0 is where overshoot
+    // disappears, so exposing the ratio directly is more predictable than
+    // exposing a raw damping value that would need re-tuning every time the
+    // spring strength changes.
+    float dampingCoeff = Flashlight_AimFollow_DampingRatio * 2.0 * sqrt(max(Flashlight_AimFollow_SpringStrength, 0.0001));
+
+    float2 driveForce = inputDir * Flashlight_AimFollow_DriveStrength;
+    float2 springForce = -pos * Flashlight_AimFollow_SpringStrength;
+    float2 dampingForce = -vel * dampingCoeff;
+    vel += (driveForce + springForce + dampingForce) * dt;
+    pos += vel * dt;
+
+    float maxOffset = max(Flashlight_AimFollow_MaxOffset, 0.0001);
+    float posLen = length(pos);
+    if (posLen > maxOffset) {
+        pos *= maxOffset / posLen;
+        vel *= 0.5; // bleed velocity at the soft cap instead of pinning against it
+    }
+
+    return float4(pos, vel);
+}
+
 // Pass 1: derive a view-space normal from neighbouring depth samples and
 // stash it alongside linear depth (in .w) for later passes to reuse.
 float4 PS_ComputeNormals(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
@@ -811,14 +937,19 @@ float2 PS_ComputeShadow(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGE
 
     if (distFromBeam > dynamicCullLimit) return float2(1.0, 0.0);
     
+    // Nudge the shadow-casting point the same way the aim follow is pushing
+    // the visual beam, so contact shadows lean with it instead of staying
+    // anchored to Flashlight_ShadowOffsetX/Y while the visible cone sweeps
+    // away from them.
+    float2 aimFollowOffset = Flashlight_GetAimFollowOffset();
     float3 shadowLightPos = float3(
-        Flashlight_ShadowOffsetX * Flashlight_ProjectionScale,
-        Flashlight_ShadowOffsetY * Flashlight_ProjectionScale,
+        (Flashlight_ShadowOffsetX + aimFollowOffset.x) * Flashlight_ProjectionScale,
+        (Flashlight_ShadowOffsetY + aimFollowOffset.y) * Flashlight_ProjectionScale,
         Flashlight_ShadowOffsetZ
     );
 
     // Beam axis (view space)
-    float3 targetPos = float3(0.0, 0.0, aimDepth);
+    float3 targetPos = Flashlight_GetAimTargetPos(aimDepth);
     float3 beamAxis = normalize(targetPos - visualLightPos);
 
     // Smoothly fades shadow strength on surfaces nearly parallel to the beam
@@ -1083,6 +1214,17 @@ float4 PS_Flashlight(float4 p : SV_POSITION, float2 uv : TEXCOORD) : SV_TARGET {
 
 technique EasyFlashlight
 {
+    // 0. Advance the arrow-key aim follow's spring-damper simulation by one
+    //    frame. Feeds back into itself (ClearRenderTargets = false), which is
+    //    what lets the 1x1 state texture carry position/velocity across
+    //    frames instead of resetting every draw.
+    pass UpdateAimFollow
+    {
+        VertexShader = PostProcessVS;
+        PixelShader = PS_UpdateAimFollow;
+        RenderTarget = AimFollowStateTex;
+        ClearRenderTargets = false;
+    }
     // 1. Reconstruct a per-pixel view-space normal from the depth buffer.
     pass ComputeNormals
     {

@@ -80,6 +80,31 @@ static const float SHADOW_TARGET_WIDTH = 1920.0;
 static const float SHADOW_SCALE = SHADOW_TARGET_WIDTH / BUFFER_WIDTH;
 
 // =============================================================================
+// AIM FOLLOW (ARROW-KEY LOOK OFFSET)
+// =============================================================================
+
+// Reads the spring-damper state written by PS_UpdateAimFollow (see
+// EasyFlashlight.fx) and returns the current look-based aimpoint offset, in
+// the same units as Flashlight_OffsetX/Y. Returns zero when the feature is
+// off so callers can add this unconditionally.
+float2 Flashlight_GetAimFollowOffset() {
+    if (!Flashlight_AimFollow_Enable) return float2(0.0, 0.0);
+    return tex2Dlod(sAimFollowState, float4(0.5, 0.5, 0, 0)).xy;
+}
+
+// The point (in view space) the beam is aimed AT - screen centre at aimDepth,
+// nudged sideways by the aim-follow offset. Scaling the offset by aimDepth
+// (rather than adding a flat amount, the way Flashlight_OffsetX/Y shift the
+// light's origin) makes this behave like swinging the beam through an angle:
+// the aimpoint moves further at long range and barely at all up close, the
+// same way panning your head shifts a distant point on a wall much more than
+// a nearby one for the same head turn.
+float3 Flashlight_GetAimTargetPos(float aimDepth) {
+    float2 aimFollowOffset = Flashlight_GetAimFollowOffset();
+    return float3(aimFollowOffset * aimDepth * Flashlight_ProjectionScale, aimDepth);
+}
+
+// =============================================================================
 // BASIC HELPERS
 // =============================================================================
 
@@ -209,7 +234,7 @@ float GetAimDepth() {
 
 float GetNormalizedBeamDistance(float2 uv, float3 pixelPos, float3 lightPos, float depthVal, float3 normal, float flashlightSize, out float2 beamUV) {
     float aimDepth = GetAimDepth();
-    float3 targetPos = float3(0.0, 0.0, aimDepth);
+    float3 targetPos = Flashlight_GetAimTargetPos(aimDepth);
     float3 beamAxis = normalize(targetPos - lightPos);
     float3 worldUp = (abs(beamAxis.y) > 0.99) ? float3(1.0, 0.0, 0.0) : float3(0.0, 1.0, 0.0);
     float3 beamRight = normalize(cross(worldUp, beamAxis));
@@ -297,7 +322,7 @@ void Flashlight_ComputeParallaxOffset(
     texturePos = pixelPos - normal * parallaxAmount;
 
     // Recompute the 2D projection for the cookie at the new depth
-    float3 targetPos = float3(0.0, 0.0, GetAimDepth());
+    float3 targetPos = Flashlight_GetAimTargetPos(GetAimDepth());
     float3 beamAxis = normalize(targetPos - lightPos);
     float3 worldUp = (abs(beamAxis.y) > 0.99) ? float3(1.0, 0.0, 0.0) : float3(0.0, 1.0, 0.0);
     float3 beamRight = normalize(cross(worldUp, beamAxis));
